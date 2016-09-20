@@ -16,7 +16,6 @@
 'use strict';
 
 /* globals MediaRecorder */
-
 var mediaSource = new MediaSource();
 mediaSource.addEventListener('sourceopen', handleSourceOpen, false);
 var mediaRecorder;
@@ -25,6 +24,7 @@ var sourceBuffer;
 
 var gumVideo = document.querySelector('video#gum');
 var recordedVideo = document.querySelector('video#recorded');
+recordedVideo.src = window.URL.createObjectURL(mediaSource);  
 
 var recordButton = document.querySelector('button#record');
 var playButton = document.querySelector('button#play');
@@ -33,14 +33,7 @@ recordButton.onclick = toggleRecording;
 playButton.onclick = play;
 downloadButton.onclick = download;
 
-// window.isSecureContext could be used for Chrome
-var isSecureOrigin = location.protocol === 'https:' ||
-location.host === 'localhost';
-if (!isSecureOrigin) {
-  alert('getUserMedia() must be run from a secure origin: HTTPS or localhost.' +
-    '\n\nChanging protocol to HTTPS');
-  location.protocol = 'HTTPS';
-}
+var stack = [];
 
 // Use old-style gUM to avoid requirement to enable the
 // Enable experimental Web Platform features flag in Chrome 49
@@ -73,15 +66,41 @@ function handleSourceOpen(event) {
   console.log('Source buffer: ', sourceBuffer);
 }
 
+function handleStream(event){
+  var arrayBuffer;
+  var fileReader = new FileReader();
+  fileReader.onload = function() {
+      arrayBuffer = this.result;
+  };
+  fileReader.onloadend = function () {
+    console.log("termino");
+    sourceBuffer.appendBuffer(fileReader.result);
+  }
+  var buffer = [];
+  for(var i=0; i<50; i++){
+    buffer.push(recordedBlobs.shift());  
+  }
+  console.debug(buffer);
+  fileReader.readAsArrayBuffer(new Blob(buffer, {type: 'video/webm'}));
+
+}
+
 recordedVideo.addEventListener('error', function(ev) {
   console.error('MediaRecording.recordedMedia.error()');
-  alert('Your browser can not play\n\n' + recordedVideo.src
-    + '\n\n media clip. event: ' + JSON.stringify(ev));
+  console.debug(ev);
 }, true);
+
+/*function myHandler(e) {
+  play();
+}
+
+recordedVideo.addEventListener('ended',myHandler,false);*/
+    
 
 function handleDataAvailable(event) {
   if (event.data && event.data.size > 0) {
     recordedBlobs.push(event.data);
+    //handleStream();
   }
 }
 
@@ -93,7 +112,6 @@ function toggleRecording() {
   if (recordButton.textContent === 'Start Recording') {
     startRecording();
   } else {
-    stopRecording();
     recordButton.textContent = 'Start Recording';
     playButton.disabled = false;
     downloadButton.disabled = false;
@@ -134,15 +152,13 @@ function startRecording() {
   console.log('MediaRecorder started', mediaRecorder);
 }
 
-function stopRecording() {
-  mediaRecorder.stop();
-  console.log('Recorded Blobs: ', recordedBlobs);
-  recordedVideo.controls = true;
-}
-
 function play() {
-  var superBuffer = new Blob(recordedBlobs, {type: 'video/webm'});
-  recordedVideo.src = window.URL.createObjectURL(superBuffer);
+  if (stack.length > 1){
+    var superBuffer = stack.pop();
+    
+  } else {
+    console.log("se acabo");
+  }
 }
 
 function download() {
